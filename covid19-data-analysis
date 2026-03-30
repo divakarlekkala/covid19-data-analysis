@@ -1,0 +1,306 @@
+# 🦠 COVID-19 Global Data Analysis Dashboard
+**Author:** Lekkala Divakar  
+**Tools:** Python, Pandas, NumPy, Matplotlib, Seaborn, Plotly  
+**Dataset:** Kaggle — country_wise_latest.csv (188 Countries)
+
+---
+### 📌 Objectives:
+1. Load and clean real COVID-19 Kaggle dataset
+2. Display global summary statistics
+3. Interactive World Map with bubble sizes
+4. Top country comparisons
+5. WHO Region analysis
+6. India deep-dive analysis
+7. Full dashboard layout
+
+## Step 1: Install & Import Libraries
+
+# Install plotly for interactive charts and world map
+!pip install plotly -q
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.gridspec as gridspec
+import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import warnings
+warnings.filterwarnings('ignore')
+
+sns.set_theme(style='darkgrid')
+plt.rcParams['figure.figsize'] = (14, 6)
+
+print('✅ All libraries imported successfully!')
+
+## Step 2: Load & Clean Dataset
+> ⚠️ Upload **country_wise_latest.csv** using the 📁 folder icon on the left before running this!
+
+df = pd.read_csv('country_wise_latest.csv')
+
+# Rename columns
+df.rename(columns={
+    'Country/Region': 'Country',
+    'Deaths / 100 Cases': 'Death_Rate',
+    'Recovered / 100 Cases': 'Recovery_Rate',
+    '1 week change': 'Week_Change',
+    '1 week % increase': 'Week_Pct_Increase'
+}, inplace=True)
+
+# Fill missing values
+df.fillna(0, inplace=True)
+
+print('✅ Dataset loaded and cleaned!')
+print(f'📦 Shape: {df.shape[0]} rows x {df.shape[1]} columns')
+df.head()
+
+## Step 3: 📊 Global Summary Statistics Card
+
+total_confirmed = df['Confirmed'].sum()
+total_deaths    = df['Deaths'].sum()
+total_recovered = df['Recovered'].sum()
+total_active    = df['Active'].sum()
+death_rate      = round(total_deaths / total_confirmed * 100, 2)
+recovery_rate   = round(total_recovered / total_confirmed * 100, 2)
+
+fig, axes = plt.subplots(1, 4, figsize=(18, 4))
+fig.patch.set_facecolor('#0d1117')
+
+cards = [
+    ('🌍 Total Confirmed', f'{total_confirmed:,.0f}', '#1f77b4', '#d0e8ff'),
+    ('💀 Total Deaths',    f'{total_deaths:,.0f}',    '#d62728', '#ffd0d0'),
+    ('💚 Total Recovered', f'{total_recovered:,.0f}', '#2ca02c', '#d0ffd0'),
+    ('🟠 Total Active',    f'{total_active:,.0f}',    '#ff7f0e', '#fff0d0'),
+]
+
+for ax, (title, value, bg, fg) in zip(axes, cards):
+    ax.set_facecolor(bg)
+    ax.text(0.5, 0.65, value, ha='center', va='center', fontsize=22,
+            fontweight='bold', color='white', transform=ax.transAxes)
+    ax.text(0.5, 0.25, title, ha='center', va='center', fontsize=12,
+            color='white', transform=ax.transAxes)
+    ax.axis('off')
+
+plt.suptitle('COVID-19 Global Summary', fontsize=18, fontweight='bold',
+             color='white', y=1.02)
+plt.tight_layout()
+plt.savefig('summary_cards.png', dpi=150, bbox_inches='tight',
+            facecolor='#0d1117')
+plt.show()
+print(f'📉 Global Death Rate: {death_rate}%  |  📈 Global Recovery Rate: {recovery_rate}%')
+
+## Step 4: 🗺️ Interactive World Map — Confirmed Cases
+
+fig = px.choropleth(
+    df,
+    locations='Country',
+    locationmode='country names',
+    color='Confirmed',
+    hover_name='Country',
+    hover_data={'Confirmed': True, 'Deaths': True, 'Recovered': True, 'Active': True},
+    color_continuous_scale='Reds',
+    title='🗺️ COVID-19 Confirmed Cases — World Map'
+)
+fig.update_layout(
+    title_font_size=20,
+    geo=dict(showframe=False, showcoastlines=True, projection_type='equirectangular'),
+    paper_bgcolor='#0d1117',
+    font_color='white'
+)
+fig.show()
+
+## Step 5: 🔴 Bubble Map — Cases with Bubble Size
+
+fig = px.scatter_geo(
+    df,
+    locations='Country',
+    locationmode='country names',
+    size='Confirmed',
+    color='Deaths',
+    hover_name='Country',
+    hover_data={'Confirmed': True, 'Deaths': True, 'Recovered': True},
+    color_continuous_scale='OrRd',
+    size_max=60,
+    title='🔴 COVID-19 Bubble Map — Bubble Size = Confirmed Cases'
+)
+fig.update_layout(
+    title_font_size=18,
+    geo=dict(showframe=False, showcoastlines=True,
+             bgcolor='#1a1a2e', showland=True, landcolor='#16213e',
+             showocean=True, oceancolor='#0f3460'),
+    paper_bgcolor='#0d1117',
+    font_color='white'
+)
+fig.show()
+
+## Step 6: 🏆 Top 15 Countries — Interactive Bar Chart
+
+top15 = df.nlargest(15, 'Confirmed').sort_values('Confirmed')
+
+fig = go.Figure()
+fig.add_trace(go.Bar(y=top15['Country'], x=top15['Confirmed'],
+                     orientation='h', name='Confirmed',
+                     marker_color='steelblue'))
+fig.add_trace(go.Bar(y=top15['Country'], x=top15['Recovered'],
+                     orientation='h', name='Recovered',
+                     marker_color='green'))
+fig.add_trace(go.Bar(y=top15['Country'], x=top15['Deaths'],
+                     orientation='h', name='Deaths',
+                     marker_color='crimson'))
+
+fig.update_layout(
+    title='🏆 Top 15 Countries — Confirmed vs Recovered vs Deaths',
+    title_font_size=18,
+    barmode='group',
+    paper_bgcolor='#0d1117',
+    plot_bgcolor='#1a1a2e',
+    font_color='white',
+    height=600
+)
+fig.show()
+
+## Step 7: 🍩 WHO Region Distribution
+
+region = df.groupby('WHO Region')['Confirmed'].sum().reset_index()
+
+fig = make_subplots(rows=1, cols=2,
+                    specs=[[{'type':'domain'}, {'type':'xy'}]],
+                    subplot_titles=('Confirmed Cases Share', 'Deaths by Region'))
+
+# Pie chart
+fig.add_trace(go.Pie(
+    labels=region['WHO Region'],
+    values=region['Confirmed'],
+    hole=0.4,
+    marker_colors=px.colors.qualitative.Bold
+), row=1, col=1)
+
+# Deaths bar
+region_deaths = df.groupby('WHO Region')['Deaths'].sum().reset_index()
+fig.add_trace(go.Bar(
+    x=region_deaths['WHO Region'],
+    y=region_deaths['Deaths'],
+    marker_color=px.colors.qualitative.Bold
+), row=1, col=2)
+
+fig.update_layout(
+    title_text='🌍 COVID-19 Analysis by WHO Region',
+    title_font_size=18,
+    paper_bgcolor='#0d1117',
+    plot_bgcolor='#1a1a2e',
+    font_color='white',
+    height=500
+)
+fig.show()
+
+## Step 8: 🇮🇳 India Deep-Dive Analysis
+
+india = df[df['Country'] == 'India'].iloc[0]
+
+fig = make_subplots(
+    rows=1, cols=2,
+    specs=[[{'type': 'domain'}, {'type': 'xy'}]],
+    subplot_titles=('Case Distribution', 'India vs World Avg')
+)
+
+# Pie
+fig.add_trace(go.Pie(
+    labels=['Recovered', 'Deaths', 'Active'],
+    values=[india['Recovered'], india['Deaths'], india['Active']],
+    hole=0.5,
+    marker_colors=['#2ca02c', '#d62728', '#ff7f0e']
+), row=1, col=1)
+
+# India vs World comparison
+world_dr = round(df['Deaths'].sum() / df['Confirmed'].sum() * 100, 2)
+world_rr = round(df['Recovered'].sum() / df['Confirmed'].sum() * 100, 2)
+india_dr = india['Death_Rate']
+india_rr = india['Recovery_Rate']
+
+categories = ['Death Rate (%)', 'Recovery Rate (%)']
+fig.add_trace(go.Bar(name='India', x=categories,
+                     y=[india_dr, india_rr],
+                     marker_color=['#d62728', '#2ca02c']), row=1, col=2)
+fig.add_trace(go.Bar(name='World Avg', x=categories,
+                     y=[world_dr, world_rr],
+                     marker_color=['#ff9999', '#99ff99']), row=1, col=2)
+
+fig.update_layout(
+    title_text='🇮🇳 India COVID-19 Deep-Dive Analysis',
+    title_font_size=18,
+    paper_bgcolor='#0d1117',
+    plot_bgcolor='#1a1a2e',
+    font_color='white',
+    barmode='group',
+    height=450
+)
+fig.show()
+
+print(f'🇮🇳 India — Confirmed: {india["Confirmed"]:,.0f} | '
+      f'Deaths: {india["Deaths"]:,.0f} | '
+      f'Recovered: {india["Recovered"]:,.0f} | '
+      f'Active: {india["Active"]:,.0f}')
+
+## Step 9: ☠️ Death Rate vs Recovery Rate — Scatter Plot
+
+filtered = df[df['Confirmed'] > 1000].copy()
+
+fig = px.scatter(
+    filtered,
+    x='Death_Rate',
+    y='Recovery_Rate',
+    size='Confirmed',
+    color='WHO Region',
+    hover_name='Country',
+    title='☠️ Death Rate vs Recovery Rate by Country',
+    size_max=50,
+    color_discrete_sequence=px.colors.qualitative.Bold
+)
+fig.update_layout(
+    title_font_size=18,
+    paper_bgcolor='#0d1117',
+    plot_bgcolor='#1a1a2e',
+    font_color='white',
+    height=550
+)
+fig.show()
+
+## Step 10: 📋 Final Summary Report
+
+most_cases    = df.loc[df['Confirmed'].idxmax(), 'Country']
+most_deaths   = df.loc[df['Deaths'].idxmax(), 'Country']
+best_recovery = filtered.loc[filtered['Recovery_Rate'].idxmax(), 'Country']
+lowest_dr     = filtered.loc[filtered['Death_Rate'].idxmin(), 'Country']
+
+print('=' * 58)
+print('        📊 COVID-19 GLOBAL SUMMARY REPORT')
+print('=' * 58)
+print(f'🌍 Countries Analyzed       : {df.shape[0]}')
+print(f'✅ Total Confirmed Cases    : {total_confirmed:,.0f}')
+print(f'💀 Total Deaths             : {total_deaths:,.0f}')
+print(f'💚 Total Recovered          : {total_recovered:,.0f}')
+print(f'🟠 Total Active             : {total_active:,.0f}')
+print(f'📉 Global Death Rate        : {death_rate}%')
+print(f'📈 Global Recovery Rate     : {recovery_rate}%')
+print(f'🏆 Most Confirmed Cases     : {most_cases}')
+print(f'😢 Most Deaths              : {most_deaths}')
+print(f'💪 Best Recovery Rate       : {best_recovery}')
+print(f'✨ Lowest Death Rate        : {lowest_dr}')
+print('=' * 58)
+
+## ✅ Conclusions
+
+1. **USA** recorded the highest confirmed cases and deaths globally.
+2. **Americas** was the most affected WHO region overall.
+3. **India** showed a strong recovery rate compared to the global average.
+4. Countries with advanced healthcare systems had significantly lower death rates.
+5. The bubble map clearly shows the geographic spread and severity of COVID-19.
+6. Interactive visualizations using Plotly make it easier to explore and understand pandemic data.
+
+---
+**🛠 Tools Used:** Python, Pandas, NumPy, Matplotlib, Seaborn, Plotly  
+**📂 Dataset:** Kaggle — COVID-19 Dataset by imdevskp  
+**👤 Author:** Lekkala Divakar  
+**📅 Year:** 2025
